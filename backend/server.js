@@ -8,7 +8,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // Allows parsing JSON from incoming requests
+app.use(express.json());
 
 // Database Connection
 const pool = new Pool({
@@ -18,19 +18,26 @@ const pool = new Pool({
 
 // --- ROUTES ---
 
-// 1. Initialize Database (Create Table)
+// 1. Initialize Database (RESET & CREATE TABLE)
+// WARNING: This route drops the existing table to add new columns!
 app.get('/initdb', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
+      // 1. Drop the old table if it exists
+      await client.query('DROP TABLE IF EXISTS patients');
+      
+      // 2. Create the new table with MORE FIELDS
       await client.query(`
-        CREATE TABLE IF NOT EXISTS patients (
+        CREATE TABLE patients (
           id SERIAL PRIMARY KEY,
           name VARCHAR(100),
-          email VARCHAR(100) UNIQUE
+          email VARCHAR(100),
+          phone VARCHAR(20),
+          appointment_date VARCHAR(50)
         );
       `);
-      res.send("Database initialized successfully! Table 'patients' created.");
+      res.send("Database reset! New table created with phone & appointment_date.");
     } finally {
       client.release();
     }
@@ -51,13 +58,15 @@ app.get('/patients', async (req, res) => {
   }
 });
 
-// 3. ADD A NEW PATIENT (POST)
+// 3. ADD A NEW PATIENT (Updated for new fields)
 app.post('/patients', async (req, res) => {
   try {
-    const { name, email } = req.body;
+    // Destructure new fields from the request body
+    const { name, email, phone, appointment_date } = req.body;
+    
     const result = await pool.query(
-      'INSERT INTO patients (name, email) VALUES ($1, $2) RETURNING *',
-      [name, email]
+      'INSERT INTO patients (name, email, phone, appointment_date) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, email, phone, appointment_date]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -66,9 +75,9 @@ app.post('/patients', async (req, res) => {
   }
 });
 
-// 4. Root Route (Home Page)
+// 4. Root Route
 app.get('/', (req, res) => {
-  res.send('DentLink API is running! 🚀');
+  res.send('DentLink API is running with new fields! 🚀');
 });
 
 // --- SERVER START ---
