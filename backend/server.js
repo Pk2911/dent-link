@@ -5,85 +5,79 @@ const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// --- CRITICAL FIX: Serve the Frontend Files ---
+// This tells Express: "Look inside the 'public' folder and show index.html"
+app.use(express.static('public')); 
+
 // Database Connection
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// 1. Initialize DB (Run this once to create tables)
-app.get('/init-db', async (req, res) => {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS doctors (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                specialization VARCHAR(100)
-            );
-            CREATE TABLE IF NOT EXISTS slots (
-                id SERIAL PRIMARY KEY,
-                doctor_id INT REFERENCES doctors(id),
-                time VARCHAR(50) NOT NULL,
-                is_booked BOOLEAN DEFAULT FALSE
-            );
-            INSERT INTO doctors (name, specialization) VALUES ('Dr. House', 'Diagnostic') ON CONFLICT DO NOTHING;
-            INSERT INTO slots (doctor_id, time) VALUES (1, '10:00 AM'), (1, '11:00 AM') ON CONFLICT DO NOTHING;
-        `);
-        res.send("Database Initialized!");
-    } catch (err) {
-        res.status(500).send(err.message);
-    }
-});
+// --- ROUTES ---
 
-// 2. Get All Slots
-app.get('/api/slots', async (req, res) => {
-    const result = await pool.query('SELECT * FROM slots ORDER BY id');
-    res.json(result.rows);
-});
-
-// 3. BOOKING (The Critical "Stand Out" Feature)
-app.post('/api/book', async (req, res) => {
+// 1. Initialize Database (RESET & CREATE TABLE)
+app.get('/initdb', async (req, res) => {
+  try {
     const client = await pool.connect();
-    const { slotId } = req.body;
-
     try {
-        await client.query('BEGIN'); // Start Transaction
-
-        // LOCK the row so no one else can read/write it until we are done
-        const slotCheck = await client.query(
-            'SELECT is_booked FROM slots WHERE id = $1 FOR UPDATE',
-            [slotId]
+      await client.query('DROP TABLE IF EXISTS patients');
+      await client.query(`
+        CREATE TABLE patients (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100),
+          email VARCHAR(100),
+          phone VARCHAR(20),
+          appointment_date VARCHAR(50)
         );
-
-        if (slotCheck.rows.length === 0) {
-            throw new Error('Slot not found');
-        }
-
-        if (slotCheck.rows[0].is_booked) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ message: 'Already Booked!' });
-        }
-
-        // Update Slot
-        await client.query('UPDATE slots SET is_booked = TRUE WHERE id = $1', [slotId]);
-        
-        await client.query('COMMIT'); // Commit Transaction
-        res.json({ message: 'Booking Success!' });
-
-    } catch (err) {
-        await client.query('ROLLBACK');
-        res.status(500).json({ message: err.message });
+      `);
+      res.send("Database reset! New table created with phone & appointment_date.");
     } finally {
-        client.release();
+      client.release();
     }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error initializing database: " + err.message);
+  }
 });
 
-app.get('/', (req, res) => {
-  res.send('Hello! The server is running 🚀');
+// 2. GET ALL PATIENTS
+app.get('/patients', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM patients');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// 3. ADD A NEW PATIENT
+app.post('/patients', async (req, res) => {
+  try {
+    const { name, email, phone, appointment_date } = req.body;
+    
+    const result = await pool.query(
+      'INSERT INTO patients (name, email, phone, appointment_date) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, email, phone, appointment_date]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
+// NOTE: I removed the "Root Route" (app.get('/')) so the index.html can load instead!
+
+// --- SERVER START ---
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
