@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const path = require('path'); // <--- NEW IMPORT
 
 const app = express();
 
@@ -10,9 +11,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- CRITICAL FIX: Serve the Frontend Files ---
-// This tells Express: "Look inside the 'public' folder and show index.html"
-app.use(express.static('public')); 
+// --- SERVE FRONTEND (UPDATED) ---
+// This uses "path.join" to find the folder safely, no matter where the server is running.
+// It assumes 'public' is in the same folder as 'server.js', OR in the project root.
+app.use(express.static(path.join(__dirname, 'public'))); 
 
 // Database Connection
 const pool = new Pool({
@@ -22,7 +24,7 @@ const pool = new Pool({
 
 // --- ROUTES ---
 
-// 1. Initialize Database (RESET & CREATE TABLE)
+// 1. Initialize Database
 app.get('/initdb', async (req, res) => {
   try {
     const client = await pool.connect();
@@ -37,7 +39,7 @@ app.get('/initdb', async (req, res) => {
           appointment_date VARCHAR(50)
         );
       `);
-      res.send("Database reset! New table created with phone & appointment_date.");
+      res.send("Database reset! New table created.");
     } finally {
       client.release();
     }
@@ -58,11 +60,10 @@ app.get('/patients', async (req, res) => {
   }
 });
 
-// 3. ADD A NEW PATIENT
+// 3. ADD PATIENT
 app.post('/patients', async (req, res) => {
   try {
     const { name, email, phone, appointment_date } = req.body;
-    
     const result = await pool.query(
       'INSERT INTO patients (name, email, phone, appointment_date) VALUES ($1, $2, $3, $4) RETURNING *',
       [name, email, phone, appointment_date]
@@ -73,8 +74,6 @@ app.post('/patients', async (req, res) => {
     res.status(500).send('Server Error: ' + err.message);
   }
 });
-
-// NOTE: I removed the "Root Route" (app.get('/')) so the index.html can load instead!
 
 // --- SERVER START ---
 const PORT = process.env.PORT || 10000;
