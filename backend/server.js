@@ -81,5 +81,9 @@ app.post('/api/book', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+  res.send('Hello! The server is running 🚀');
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
