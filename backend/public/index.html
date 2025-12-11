@@ -109,21 +109,18 @@
         </div>
     </div>
 
-    <script>
+<script>
         const API_URL = 'https://dent-link.onrender.com';
 
-        // Helper: Convert YYYY-MM-DD to DD/MM/YYYY (Indian Format)
+        // Helper: Convert Date
         function formatDateToIndian(dateString) {
             if (!dateString) return 'TBD';
-            // Create a real date object
             const dateObj = new Date(dateString);
-            // Check if date is invalid
             if (isNaN(dateObj)) return dateString; 
-            // Force en-GB (British English) which is always DD/MM/YYYY
             return dateObj.toLocaleDateString('en-GB');
         }
 
-        // Helper to show messages without alert()
+        // Helper: Show Messages
         function showMessage(text, type = 'success') {
             const el = document.getElementById('statusMessage');
             el.className = `alert alert-${type}`;
@@ -132,17 +129,15 @@
             setTimeout(() => el.classList.add('d-none'), 3000);
         }
 
-        // 1. Fetch Patients
+        // --- 1. FETCH & DISPLAY PATIENTS (Updated with Delete Button) ---
         async function fetchPatients() {
             const tbody = document.querySelector('#patientTable tbody');
             const emptyState = document.getElementById('emptyState');
             
             try {
-                // Show loading state if needed
                 const response = await fetch(`${API_URL}/patients`);
                 const patients = await response.json();
                 
-                // Update Count Badge
                 document.getElementById('countBadge').innerText = patients.length;
 
                 if (patients.length === 0) {
@@ -155,10 +150,7 @@
                 tbody.innerHTML = ''; 
                 
                 patients.forEach(patient => {
-                    // Create initials for avatar (e.g. "Jane Doe" -> "JD")
                     const initials = patient.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
-                    
-                    // Format Date
                     const indianDate = formatDateToIndian(patient.appointment_date);
                     
                     const row = `
@@ -173,40 +165,57 @@
                             </div>
                         </td>
                         <td>
-                            <div class="small"><i class="fas fa-envelope me-1 text-muted"></i> ${patient.email}</div>
-                            <div class="small"><i class="fas fa-phone me-1 text-muted"></i> ${patient.phone || '--'}</div>
+                            <div class="small">${patient.email}</div>
+                            <div class="small">${patient.phone || '--'}</div>
                         </td>
                         <td>
                             <div class="fw-semibold text-dark">${indianDate}</div>
                         </td>
-                        <td><span class="status-badge">Confirmed</span></td>
+                        <td>
+                            <button onclick="deletePatient(${patient.id})" class="btn btn-sm btn-outline-danger" title="Cancel Appointment">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
                     </tr>`;
                     tbody.innerHTML += row;
                 });
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        // --- 2. DELETE PATIENT FUNCTION (New) ---
+        async function deletePatient(id) {
+            if(!confirm("Are you sure you want to cancel this appointment?")) return;
+
+            try {
+                const response = await fetch(`${API_URL}/patients/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showMessage("Appointment cancelled.", "warning");
+                    fetchPatients(); // Refresh list immediately
+                } else {
+                    showMessage("Could not delete.", "danger");
+                }
             } catch (error) {
-                console.error('Error:', error);
-                showMessage('Failed to load patients', 'danger');
+                console.error(error);
+                showMessage("Network error.", "danger");
             }
         }
 
-        // 2. Add Patient
+        // --- 3. ADD PATIENT FUNCTION ---
         async function addPatient() {
             const btn = document.querySelector('button');
             const originalText = btn.innerText;
-            
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const phone = document.getElementById('phone').value;
             const appointment_date = document.getElementById('date').value;
 
-            if(!name || !email) {
-                showMessage("Name and Email are required!", "danger");
-                return;
-            }
+            if(!name || !email) { showMessage("Name/Email required!", "danger"); return; }
 
-            // Button Loading State
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.innerHTML = 'Saving...';
 
             try {
                 const response = await fetch(`${API_URL}/patients`, {
@@ -216,25 +225,17 @@
                 });
 
                 if (response.ok) {
-                    showMessage('Appointment booked successfully!');
+                    showMessage('Booked!');
                     fetchPatients(); 
-                    // Clear inputs
                     document.getElementById('name').value = '';
                     document.getElementById('email').value = '';
                     document.getElementById('phone').value = '';
                     document.getElementById('date').value = '';
-                } else {
-                    showMessage('Server error. Try again.', 'danger');
-                }
-            } catch (error) {
-                showMessage('Network error.', 'danger');
-            } finally {
-                btn.disabled = false;
-                btn.innerText = originalText;
-            }
+                } else { showMessage('Error', 'danger'); }
+            } catch (error) { showMessage('Network Error', 'danger'); } 
+            finally { btn.disabled = false; btn.innerText = originalText; }
         }
 
-        // Initialize
         fetchPatients();
     </script>
 </body>
