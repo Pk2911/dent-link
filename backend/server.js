@@ -38,50 +38,36 @@ app.get('/init-db', async (req, res) => {
     }
 });
 
-// 2. Get All Slots
-app.get('/api/slots', async (req, res) => {
-    const result = await pool.query('SELECT * FROM slots ORDER BY id');
-    res.json(result.rows);
-});
-
-// 3. BOOKING (The Critical "Stand Out" Feature)
-app.post('/api/book', async (req, res) => {
+// 1. The Route to Initialize the Database
+app.get('/initdb', async (req, res) => {
+  try {
     const client = await pool.connect();
-    const { slotId } = req.body;
-
     try {
-        await client.query('BEGIN'); // Start Transaction
-
-        // LOCK the row so no one else can read/write it until we are done
-        const slotCheck = await client.query(
-            'SELECT is_booked FROM slots WHERE id = $1 FOR UPDATE',
-            [slotId]
+      // Create a sample table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS patients (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100),
+          email VARCHAR(100) UNIQUE
         );
-
-        if (slotCheck.rows.length === 0) {
-            throw new Error('Slot not found');
-        }
-
-        if (slotCheck.rows[0].is_booked) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ message: 'Already Booked!' });
-        }
-
-        // Update Slot
-        await client.query('UPDATE slots SET is_booked = TRUE WHERE id = $1', [slotId]);
-        
-        await client.query('COMMIT'); // Commit Transaction
-        res.json({ message: 'Booking Success!' });
-
-    } catch (err) {
-        await client.query('ROLLBACK');
-        res.status(500).json({ message: err.message });
+      `);
+      res.send("Database initialized successfully! Table 'patients' created.");
     } finally {
-        client.release();
+      client.release();
     }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error initializing database: " + err.message);
+  }
 });
+
+// 2. The Root Route (Optional, fixes the white "Cannot GET /" screen)
 app.get('/', (req, res) => {
-  res.send('Hello! The server is running 🚀');
+  res.send('DentLink API is running! 🚀');
 });
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// 3. Start the Server
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
