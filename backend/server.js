@@ -10,6 +10,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// --- CRITICAL FIX: Serve the Frontend Files ---
+// This tells Express: "Look inside the 'public' folder and show index.html"
+app.use(express.static('public')); 
+
 // Database Connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -19,15 +23,11 @@ const pool = new Pool({
 // --- ROUTES ---
 
 // 1. Initialize Database (RESET & CREATE TABLE)
-// WARNING: This route drops the existing table to add new columns!
 app.get('/initdb', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
-      // 1. Drop the old table if it exists
       await client.query('DROP TABLE IF EXISTS patients');
-      
-      // 2. Create the new table with MORE FIELDS
       await client.query(`
         CREATE TABLE patients (
           id SERIAL PRIMARY KEY,
@@ -58,10 +58,9 @@ app.get('/patients', async (req, res) => {
   }
 });
 
-// 3. ADD A NEW PATIENT (Updated for new fields)
+// 3. ADD A NEW PATIENT
 app.post('/patients', async (req, res) => {
   try {
-    // Destructure new fields from the request body
     const { name, email, phone, appointment_date } = req.body;
     
     const result = await pool.query(
@@ -75,10 +74,7 @@ app.post('/patients', async (req, res) => {
   }
 });
 
-// 4. Root Route
-app.get('/', (req, res) => {
-  res.send('DentLink API is running with new fields! 🚀');
-});
+// NOTE: I removed the "Root Route" (app.get('/')) so the index.html can load instead!
 
 // --- SERVER START ---
 const PORT = process.env.PORT || 10000;
