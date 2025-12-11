@@ -109,18 +109,18 @@
         </div>
     </div>
 
-    <script>
+<script>
         const API_URL = 'https://dent-link.onrender.com';
 
-        // Helper: Convert YYYY-MM-DD to DD/MM/YYYY (Indian Format)
+        // --- 1. NEW HELPER FUNCTION: Convert 2025-01-13 to 13/01/2025 ---
         function formatDateToIndian(isoDate) {
             if (!isoDate) return 'TBD';
-            const parts = isoDate.split('-'); // Splits 2025-01-13 into [2025, 01, 13]
-            if (parts.length !== 3) return isoDate; // Fallback if data is messy
-            return `${parts[2]}/${parts[1]}/${parts[0]}`; // Returns 13/01/2025
+            const parts = isoDate.split('-'); // Splits YYYY-MM-DD
+            if (parts.length !== 3) return isoDate; 
+            return `${parts[2]}/${parts[1]}/${parts[0]}`; // Returns DD/MM/YYYY
         }
 
-        // Helper to show messages without alert()
+        // Helper to show messages
         function showMessage(text, type = 'success') {
             const el = document.getElementById('statusMessage');
             el.className = `alert alert-${type}`;
@@ -129,17 +129,15 @@
             setTimeout(() => el.classList.add('d-none'), 3000);
         }
 
-        // 1. Fetch Patients
+        // --- 2. UPDATED FETCH FUNCTION ---
         async function fetchPatients() {
             const tbody = document.querySelector('#patientTable tbody');
             const emptyState = document.getElementById('emptyState');
             
             try {
-                // Show loading state if needed
                 const response = await fetch(`${API_URL}/patients`);
                 const patients = await response.json();
                 
-                // Update Count Badge
                 document.getElementById('countBadge').innerText = patients.length;
 
                 if (patients.length === 0) {
@@ -152,10 +150,9 @@
                 tbody.innerHTML = ''; 
                 
                 patients.forEach(patient => {
-                    // Create initials for avatar (e.g. "Jane Doe" -> "JD")
                     const initials = patient.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
                     
-                    // Format Date
+                    // USE THE HELPER FUNCTION HERE
                     const indianDate = formatDateToIndian(patient.appointment_date);
                     
                     const row = `
@@ -182,11 +179,10 @@
                 });
             } catch (error) {
                 console.error('Error:', error);
-                showMessage('Failed to load patients', 'danger');
             }
         }
 
-        // 2. Add Patient
+        // 3. Add Patient Function
         async function addPatient() {
             const btn = document.querySelector('button');
             const originalText = btn.innerText;
@@ -201,7 +197,6 @@
                 return;
             }
 
-            // Button Loading State
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
@@ -215,7 +210,6 @@
                 if (response.ok) {
                     showMessage('Appointment booked successfully!');
                     fetchPatients(); 
-                    // Clear inputs
                     document.getElementById('name').value = '';
                     document.getElementById('email').value = '';
                     document.getElementById('phone').value = '';
