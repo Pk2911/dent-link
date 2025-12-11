@@ -5,45 +5,24 @@ const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
+
+// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Allows parsing JSON from incoming requests
 
 // Database Connection
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// 1. Initialize DB (Run this once to create tables)
-app.get('/init-db', async (req, res) => {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS doctors (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                specialization VARCHAR(100)
-            );
-            CREATE TABLE IF NOT EXISTS slots (
-                id SERIAL PRIMARY KEY,
-                doctor_id INT REFERENCES doctors(id),
-                time VARCHAR(50) NOT NULL,
-                is_booked BOOLEAN DEFAULT FALSE
-            );
-            INSERT INTO doctors (name, specialization) VALUES ('Dr. House', 'Diagnostic') ON CONFLICT DO NOTHING;
-            INSERT INTO slots (doctor_id, time) VALUES (1, '10:00 AM'), (1, '11:00 AM') ON CONFLICT DO NOTHING;
-        `);
-        res.send("Database Initialized!");
-    } catch (err) {
-        res.status(500).send(err.message);
-    }
-});
+// --- ROUTES ---
 
-// 1. The Route to Initialize the Database
+// 1. Initialize Database (Create Table)
 app.get('/initdb', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
-      // Create a sample table
       await client.query(`
         CREATE TABLE IF NOT EXISTS patients (
           id SERIAL PRIMARY KEY,
@@ -61,12 +40,38 @@ app.get('/initdb', async (req, res) => {
   }
 });
 
-// 2. The Root Route (Optional, fixes the white "Cannot GET /" screen)
+// 2. GET ALL PATIENTS
+app.get('/patients', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM patients');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
+// 3. ADD A NEW PATIENT (POST)
+app.post('/patients', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const result = await pool.query(
+      'INSERT INTO patients (name, email) VALUES ($1, $2) RETURNING *',
+      [name, email]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
+// 4. Root Route (Home Page)
 app.get('/', (req, res) => {
   res.send('DentLink API is running! 🚀');
 });
 
-// 3. Start the Server
+// --- SERVER START ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
