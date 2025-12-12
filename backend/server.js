@@ -73,6 +73,18 @@ app.post('/patients', async (req, res) => {
   }
 });
 
+
+app.delete('/patients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM patients WHERE id = $1', [id]);
+    res.json({ message: "Patient deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
 // --- SERVER START ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
