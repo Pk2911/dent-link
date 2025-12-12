@@ -22,8 +22,8 @@ const pool = new Pool({
 
 // --- ROUTES ---
 
-// 1. Initialize Database
-app.get('/initdb', async (req, res) => {
+// 1. Initialize Database (SECURED: Commented out to prevent accidental deletion)
+/* app.get('/initdb', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
@@ -46,11 +46,12 @@ app.get('/initdb', async (req, res) => {
     res.status(500).send("Error initializing database: " + err.message);
   }
 });
+*/
 
 // 2. GET ALL PATIENTS
 app.get('/patients', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM patients');
+    const result = await pool.query('SELECT * FROM patients ORDER BY id ASC'); // Added ORDER BY so list doesn't jump around
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -73,12 +74,28 @@ app.post('/patients', async (req, res) => {
   }
 });
 
-
+// 4. DELETE A PATIENT
 app.delete('/patients/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM patients WHERE id = $1', [id]);
     res.json({ message: "Patient deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+});
+
+// 5. UPDATE A PATIENT (New Feature!)
+app.put('/patients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, appointment_date } = req.body;
+    const result = await pool.query(
+      'UPDATE patients SET name = $1, email = $2, phone = $3, appointment_date = $4 WHERE id = $5 RETURNING *',
+      [name, email, phone, appointment_date, id]
+    );
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error: ' + err.message);
